@@ -1,0 +1,25 @@
+# 参考克隆（只读）
+refs/
+
+# 运行产物
+output/
+log/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 缓存
+_cache/
+
+# 本地配置（含 API key）
+config/config.yaml
+config/glossary.local.yaml
+.env
+
+# 测试夹具（本地保留，不入库）
+*.pdf
+*.tar.gz

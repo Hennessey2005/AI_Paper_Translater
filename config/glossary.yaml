@@ -1,0 +1,18 @@
+# 术语表（可积累；S4 翻译强制采用；论文级新术语由 orchestrator 回写）
+version: 1
+note: >
+  译名为强制标准。wind noise reduction(WNR) 是总任务名，wind rejection 是其中
+  "直接估计目标信号"的范式，两者译名刻意区分以免混淆。
+terms:
+  wind noise reduction: 风噪抑制
+  WNR: 风噪抑制
+  wind rejection: 风噪剔除
+  wind extraction: 风噪提取
+  speech enhancement: 语音增强
+  mask: 掩模
+  STFT: 短时傅里叶变换
+  power-law compression: 幂律压缩
+  sub-band: 子带
+  leakage: 泄漏
+  real-time factor: 实时因子
+  listening test: 听音测试

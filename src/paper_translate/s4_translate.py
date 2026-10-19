@@ -1,0 +1,187 @@
+# -*- coding: utf-8 -*-
+"""S4 翻译：middle_json 块 → 翻译单元 → LLM 翻译（术语表+校验+缓存）。
+
+块分类：
+    doc_title / paragraph_title → title（翻译）
+    text                        → text（翻译）
+    ref_text                    → ref（保留原文，学术惯例）
+    equation                    → equation（LaTeX 原样，不翻译）
+    image / chart / table       → visual（关联 S3 的 figures.json 描述）
+    aside_text / page_footnote  → skip（arXiv 侧栏水印 / 脚注，v1 不译）
+
+校验（不通过则重试一次，再失败标记 flag）：
+    - 行内 LaTeX 命令数量一致（如 mathbf 命令）
+    - 引用编号 [12] / [1–8] 数量一致
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+
+import yaml
+
+from .clients.llm import LLMClient, log_event
+from .s2_formulas import _content_to_text
+
+LATEX_CMD_RE = re.compile(r"\\[A-Za-z]+")
+CITE_RE = re.compile(r"\[\d+(?:\s*[–,-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–,-]\s*\d+)?)*\]")
+
+PROMPT_VER = "v1"
+SYSTEM_PROMPT = (
+    "你是资深学术论文翻译引擎，将英文学术论文段落翻译成中文。规则："
+    "1) 忠实原文，不增删信息，不加译注和总结；"
+    "2) 术语表中的译名强制采用；未列入术语表的专业术语首次出现时在括号内附英文原词；"
+    "3) 行内 LaTeX 片段（如 \\mathbf { x } [ n ]）属于公式记号，原样保留，不得翻译、改写或删除；"
+    "4) 引用编号如 [12]、[1–8] 原样保留；数字、单位、百分比不变；"
+    "5) 专有名词（模型名、数据集名、机构名）保留英文；"
+    "6) 只输出译文正文本身，不要任何前言、解释或 Markdown 格式。"
+)
+
+
+@dataclass
+class Unit:
+    seg_id: str
+    kind: str            # title | text | ref | equation | visual | skip
+    page_idx: int
+    block_index: int
+    src: str = ""
+    zh: str = ""
+    meta: dict = field(default_factory=dict)   # visual: {figure_id, kind}; check flags 等
+
+
+def _block_text(block: dict) -> str:
+    # content 可能是纯字符串（equation 等）或 span 列表（text 等），统一处理
+    return _content_to_text(block.get("content", "")).strip()
+
+
+def build_units(middle_json: dict, figures_registry: list[dict]) -> list[Unit]:
+    """遍历块生成翻译单元；visual 块按 (page_idx, kind, 顺序) 对齐 figures.json。"""
+    # figures.json 与 s3.collect_visuals 同序；s3 的计数器按 kind 全局递增，此处保持一致
+    kcount: dict[str, int] = {}
+    fig_by_key: dict[tuple, dict] = {}
+    for f in figures_registry:
+        if f.get("skipped"):
+            continue
+        kcount[f["kind"]] = kcount.get(f["kind"], 0) + 1
+        fig_by_key[(f["page_idx"], f["kind"], kcount[f["kind"]])] = f
+    bcount: dict[str, int] = {}
+
+    units: list[Unit] = []
+    n = 0
+    for page in middle_json.get("pages", []):
+        pidx = page.get("page_idx", 0)
+        for bi, b in enumerate(page.get("blocks", [])):
+            t = b.get("type")
+            idx = b.get("index", bi)
+            if t in ("doc_title", "paragraph_title"):
+                n += 1
+                units.append(Unit(f"S-{n:03d}", "title", pidx, idx, _block_text(b)))
+            elif t == "text":
+                txt = _block_text(b)
+                if not txt:
+                    continue
+                n += 1
+                units.append(Unit(f"S-{n:03d}", "text", pidx, idx, txt))
+            elif t == "ref_text":
+                txt = _block_text(b)
+                if txt:
+                    n += 1
+                    units.append(Unit(f"S-{n:03d}", "ref", pidx, idx, txt))
+            elif t == "equation":
+                n += 1
+                units.append(Unit(f"S-{n:03d}", "equation", pidx, idx,
+                                  _block_text(b), meta={"kind": "equation"}))
+            elif t in ("image", "chart", "table"):
+                bcount[t] = bcount.get(t, 0) + 1
+                f = fig_by_key.get((pidx, t, bcount[t]))
+                n += 1
+                units.append(Unit(f"S-{n:03d}", "visual", pidx, idx,
+                                  meta={"figure_id": f["id"] if f else None, "kind": t}))
+            # aside_text / page_footnote → skip
+    return units
+
+
+def _load_glossary(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return {str(k): str(v) for k, v in (data.get("terms") or {}).items()}
+
+
+def _glossary_block(gloss: dict[str, str]) -> str:
+    if not gloss:
+        return "（无术语表）"
+    return "\n".join(f"{k} → {v}" for k, v in gloss.items())
+
+
+def _check(src: str, zh: str, kind: str = "text") -> list[str]:
+    problems = []
+    if len(LATEX_CMD_RE.findall(src)) != len(LATEX_CMD_RE.findall(zh)):
+        problems.append("latex_cmd_mismatch")
+    if len(CITE_RE.findall(src)) != len(CITE_RE.findall(zh)):
+        problems.append("citation_mismatch")
+    # 标题译成中文天然更短，不作长度检查
+    if kind != "title" and len(zh) < 0.25 * len(src):
+        problems.append("too_short")
+    return problems
+
+
+def translate_units(units: list[Unit], client: LLMClient, gloss_path: Path,
+                    doc_title: str, cache_path: Path, log_path: Path,
+                    retry_once: bool = True) -> dict:
+    """翻译所有 title/text 单元。带磁盘缓存（断点续跑不重复计费）。"""
+    gloss = _load_glossary(gloss_path)
+    cache: dict = {}
+    if cache_path.exists():
+        cache = json.loads(cache_path.read_text(encoding="utf-8"))
+
+    usage = {"in": 0, "out": 0, "calls": 0, "cache_hit": 0, "flags": 0}
+    gloss_block = _glossary_block(gloss)
+    user_tpl = ("全文标题（已译）：{title}\n术语表（强制采用译名）：\n{gloss}\n\n"
+                "待翻译段落：\n{seg}")
+
+    todo = [u for u in units if u.kind in ("title", "text")]
+    for u in todo:
+        key = hashlib.sha1(
+            f"{PROMPT_VER}|{client.model}|{gloss_block}|{u.src}".encode()).hexdigest()[:16]
+        if key in cache:
+            u.zh = cache[key]
+            usage["cache_hit"] += 1
+            continue
+        r = client.chat(SYSTEM_PROMPT,
+                        user_tpl.format(title=doc_title, gloss=gloss_block, seg=u.src))
+        usage["in"] += r["tok_in"]
+        usage["out"] += r["tok_out"]
+        usage["calls"] += 1
+        zh = r["text"]
+        problems = _check(u.src, zh, u.kind)
+        if problems and retry_once:
+            fix_hint = {"latex_cmd_mismatch": "行内 LaTeX 公式记号被改动，必须原样保留。",
+                        "citation_mismatch": "引用编号被改动或丢失，必须原样保留。",
+                        "too_short": "译文过短，疑似漏译，请完整翻译。"}
+            r2 = client.chat(SYSTEM_PROMPT,
+                             user_tpl.format(title=doc_title, gloss=gloss_block, seg=u.src)
+                             + "\n\n注意：上一次输出存在问题——"
+                             + "；".join(fix_hint.get(p, p) for p in problems) + " 请重新翻译。")
+            usage["in"] += r2["tok_in"]
+            usage["out"] += r2["tok_out"]
+            usage["calls"] += 1
+            zh2 = r2["text"]
+            if not _check(u.src, zh2, u.kind):
+                zh = zh2
+            else:
+                u.meta["flag"] = problems  # 保留首次译文并标记人工复核
+                usage["flags"] += 1
+        u.zh = zh
+        cache[key] = zh
+        log_event(log_path, {"stage": "s4", "level": "warn" if u.meta.get("flag") else "info",
+                             "item": u.seg_id, "engine": client.model,
+                             "duration_ms": int(r["duration_s"] * 1000),
+                             "tokens_in": r["tok_in"], "tokens_out": r["tok_out"],
+                             "problems": problems or None})
+        # 每段落落盘一次缓存
+        cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=0), encoding="utf-8")
+    return usage

@@ -1,0 +1,32 @@
+# 论文翻译工具配置模板
+# 复制为 config.yaml 后填写；config.yaml 已被 .gitignore 忽略
+
+# ---- 资源路由 ----
+resource_mode: auto        # auto | cpu | gpu   auto=探测 torch.cuda 与显存
+tier: basic                # MinerU 档位: basic(CPU小模型) | standard(小模型+VLM) | flash(快读)
+
+gpu:
+  min_vram_gb: 8
+
+# ---- API 路由 ----
+api_route:
+  figure_understanding: always   # always | gpu_first | never   (S3 图表理解)
+  formula_low_confidence: never  # never | fallback             (S2 低置信度公式精修)
+  translation: always            # always(在线) | offline(Ollama) (S4 翻译)
+  llm_aided: false               # MinerU 内置 API 后处理(标题分级/跨页表格)
+
+# ---- API 提供方（OpenAI 兼容协议，三选一或自行扩展）----
+# 到 M3/M4 阶段需要 key 时再填
+api:
+  provider: siliconflow    # siliconflow | bigmodel | custom
+  base_url: https://api.siliconflow.cn/v1
+  api_key: ""              # 待填
+  vlm_model: ""            # 图表理解用多模态模型，如 Qwen/Qwen2.5-VL-72B-Instruct
+  llm_model: ""            # 翻译用文本模型，如 deepseek-ai/DeepSeek-V3
+  max_concurrency: 4
+  budget_limit_usd: 1.0    # 单篇成本上限，超过暂停
+
+# ---- 输出 ----
+output:
+  bilingual: true          # 是否生成中英对照版
+  lang_target: zh
