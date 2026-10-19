@@ -86,7 +86,8 @@ def run_pipeline(pdf: Path, out_dir: Path, cfg: dict,
         emit_figures(visuals, out_dir / "figures", cache_dir)
         mark("s3", mode="offline", figures=sum(1 for v in visuals if not v.skipped))
     else:
-        vlm = VLMClient(api["base_url"], api["api_key"], api["vlm_model"])
+        vlm = VLMClient(api["base_url"], api["api_key"], api["vlm_model"],
+                        proxy=api.get("proxy"))
         usage = analyze_figures(visuals, cache_dir, vlm, log_path)
         emit_figures(visuals, out_dir / "figures", cache_dir)
         mark("s3", figures=sum(1 for v in visuals if not v.skipped),
@@ -105,7 +106,8 @@ def run_pipeline(pdf: Path, out_dir: Path, cfg: dict,
         mark("s4", mode="offline")
     else:
         llm = LLMClient(api["base_url"], api["api_key"],
-                        api.get("llm_model") or api["vlm_model"])
+                        api.get("llm_model") or api["vlm_model"],
+                        proxy=api.get("proxy"))
         usage = translate_units(units, llm,
                                 gloss_path=Path("config/glossary.yaml"),
                                 doc_title=title_src,

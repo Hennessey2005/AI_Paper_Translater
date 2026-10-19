@@ -12,7 +12,18 @@ import json
 import time
 from pathlib import Path
 
+import httpx
 from openai import OpenAI
+
+
+def make_http_client(proxy: str | None, timeout: float) -> httpx.Client:
+    """proxy: None/""=强制直连（默认，国内端点不受 VPN 开关影响）；
+    "env"=跟随系统环境变量；其他值视为代理 URL（如 http://127.0.0.1:7897）。"""
+    if proxy == "env":
+        return httpx.Client(trust_env=True, timeout=timeout)
+    if proxy:
+        return httpx.Client(proxy=proxy, timeout=timeout)
+    return httpx.Client(trust_env=False, timeout=timeout)
 
 
 def _data_url(image_path: Path) -> str:
@@ -25,10 +36,12 @@ def _data_url(image_path: Path) -> str:
 
 class VLMClient:
     def __init__(self, base_url: str, api_key: str, model: str,
-                 timeout: float = 120.0, max_retries: int = 3):
+                 timeout: float = 120.0, max_retries: int = 3,
+                 proxy: str | None = None):
         self.model = model
         self.max_retries = max_retries
-        self._cli = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        self._cli = OpenAI(api_key=api_key, base_url=base_url,
+                           http_client=make_http_client(proxy, timeout))
 
     def chat_image(self, image_path: Path, system: str, user: str,
                    max_tokens: int = 2000) -> dict:

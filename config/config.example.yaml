@@ -22,7 +22,10 @@ api:
   base_url: https://api.siliconflow.cn/v1
   api_key: ""              # 待填
   vlm_model: ""            # 图表理解用多模态模型，如 Qwen/Qwen2.5-VL-72B-Instruct
-  llm_model: ""            # 翻译用文本模型，如 deepseek-ai/DeepSeek-V3
+  llm_model: ""            # 翻译用文本模型，如 deepseek-ai/DeepSeek-V3.2
+  # 代理策略：留空=强制直连（推荐，国内端点不受 VPN 开关影响）
+  # "env"=跟随系统环境变量；或填代理 URL 如 http://127.0.0.1:7897
+  proxy: ""
   max_concurrency: 4
   budget_limit_usd: 1.0    # 单篇成本上限，超过暂停
 

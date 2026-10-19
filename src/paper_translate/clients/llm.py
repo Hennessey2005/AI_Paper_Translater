@@ -8,15 +8,18 @@ from pathlib import Path
 
 from openai import OpenAI
 
+from .vlm import make_http_client
+
 
 class LLMClient:
     def __init__(self, base_url: str, api_key: str, model: str,
                  timeout: float = 120.0, max_retries: int = 3,
-                 temperature: float = 0.2):
+                 temperature: float = 0.2, proxy: str | None = None):
         self.model = model
         self.max_retries = max_retries
         self.temperature = temperature
-        self._cli = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        self._cli = OpenAI(api_key=api_key, base_url=base_url,
+                           http_client=make_http_client(proxy, timeout))
 
     def chat(self, system: str, user: str, max_tokens: int = 2000) -> dict:
         last_err: Exception | None = None
