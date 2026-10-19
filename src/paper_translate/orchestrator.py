@@ -36,7 +36,12 @@ def run_pipeline(pdf: Path, out_dir: Path, cfg: dict,
     pdf = Path(pdf)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    cache_dir = Path(cache_dir) if cache_dir else out_dir / "_cache"
+    if cache_dir is None:
+        # 默认按 PDF 内容哈希隔离缓存：同一论文重跑自动复用，不同论文互不污染
+        import hashlib
+        h = hashlib.sha1(pdf.read_bytes()).hexdigest()[:16]
+        cache_dir = Path("output") / "_cache" / h
+    cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     log_dir = Path(log_dir) if log_dir else Path("log")
     log_dir.mkdir(exist_ok=True)
