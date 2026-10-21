@@ -19,6 +19,7 @@ from .s2_formulas import extract_formulas, emit as emit_formulas
 from .s3_figures import analyze as analyze_figures, collect_visuals, emit_figures
 from .s4_translate import build_units, translate_units
 from .s5_assemble import assemble
+from .title_naming import extract_doc_title, resolve_out_dir, write_hash_marker
 
 
 def _find_middle_json(cache_dir: Path) -> Path | None:
@@ -29,18 +30,21 @@ def _find_middle_json(cache_dir: Path) -> Path | None:
     return hits[0] if hits else None
 
 
-def run_pipeline(pdf: Path, out_dir: Path, cfg: dict,
+def run_pipeline(pdf: Path, out_dir: Path | None, cfg: dict,
                  cache_dir: Path | None = None, offline: bool = False,
                  log_dir: Path | None = None) -> dict:
+    """out_dir=None → S1 解析后按论文标题自动命名 output/<标题>（v2.1 P0-A，title_naming）。"""
     t_start = time.perf_counter()
     pdf = Path(pdf)
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # PDF 内容哈希：既隔离缓存，也作为输出目录的身份标记（title_naming）
+    import hashlib
+    pdf_hash = hashlib.sha1(pdf.read_bytes()).hexdigest()[:16]
+    if out_dir is not None:
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
     if cache_dir is None:
         # 默认按 PDF 内容哈希隔离缓存：同一论文重跑自动复用，不同论文互不污染
-        import hashlib
-        h = hashlib.sha1(pdf.read_bytes()).hexdigest()[:16]
-        cache_dir = Path("output") / "_cache" / h
+        cache_dir = Path("output") / "_cache" / pdf_hash
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     log_dir = Path(log_dir) if log_dir else Path("log")
@@ -48,7 +52,8 @@ def run_pipeline(pdf: Path, out_dir: Path, cfg: dict,
     log_path = log_dir / f"run-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
     api = cfg.get("api", {})
 
-    report: dict = {"pdf": pdf.name, "cache_dir": str(cache_dir), "stages": {}}
+    report: dict = {"pdf": pdf.name, "pdf_hash": pdf_hash,
+                    "cache_dir": str(cache_dir), "stages": {}}
 
     def mark(stage: str, **kw):
         report["stages"][stage] = kw
@@ -73,6 +78,15 @@ def run_pipeline(pdf: Path, out_dir: Path, cfg: dict,
     assert mj_path, "middle_json 未产出"
     mj = json.loads(mj_path.read_text(encoding="utf-8"))
     assert mj.get("schema") == "docvortex.middle", "协议版本不兼容，请检查 MinerU 版本"
+
+    # ---------- 输出目录定名（未显式 -o 时，按论文真实标题，S1 产物零成本） ----------
+    if out_dir is None:
+        doc_title = extract_doc_title(mj)
+        out_dir = resolve_out_dir(Path("output"), doc_title, pdf.stem, pdf_hash)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        write_hash_marker(out_dir, pdf_hash)
+        report["title"] = doc_title or pdf.stem
+        mark("dir", out=str(out_dir), title=(doc_title or "")[:60] or "(回退文件名)")
 
     # ---------- S2 公式剥离（本地） ----------
     registry = extract_formulas(mj)
@@ -127,6 +141,7 @@ def run_pipeline(pdf: Path, out_dir: Path, cfg: dict,
 
     report["checks"] = check["checks"]
     report["outputs"] = {
+        "输出目录": str(out_dir),
         "译文": str(out_dir / "译文.zh.md"),
         "对照": str(out_dir / "译文.bilingual.md"),
         "公式": str(out_dir / "formulas"),

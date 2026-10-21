@@ -21,9 +21,17 @@ PDF ─► S1 MinerU解析 ─► S2 公式剥离 ─► S3 图表理解 ─► 
 
 ## 快速开始
 
+### Windows（推荐：自动配置 + 拖拽）
+
 ```bash
 git clone git@github.com:Hennessey2005/AI_Paper_Translater.git
-cd AI_Paper_Translater
+```
+
+打开仓库目录，**把 PDF 拖到 `run.bat` 图标上**（支持一次拖多个；也可双击后把文件拖入窗口回车）。首次运行自动完成：缺 Python 则引导安装 → 建 venv 装依赖 → 记事本打开 `config\config.yaml` 引导填 API key，之后秒进。处理完成后自动打开结果目录。
+
+### 手动 / 其他平台
+
+```bash
 python -m venv .venv && .venv\Scripts\activate     # Windows
 pip install -e .
 
@@ -36,6 +44,7 @@ paper-translate paper.pdf
 ```bash
 paper-translate paper.pdf --offline                       # 仅本地阶段，不调 API
 paper-translate paper.pdf --cache-dir output/_cache/<hash> # 复用解析缓存
+paper-translate paper.pdf --open                          # 完成后打开输出目录
 python -m paper_translate paper.pdf                        # 未安装命令时
 ```
 
@@ -44,7 +53,7 @@ python -m paper_translate paper.pdf                        # 未安装命令时
 ## 输出结构
 
 ```
-output/<论文名>/
+output/<论文标题>/
 ├── 译文.zh.md          # 中文译文（公式 LaTeX 内嵌、图表原位描述）
 ├── 译文.bilingual.md   # 中英对照
 ├── formulas/           # 公式注册表（编号/页码/LaTeX/回验状态）
@@ -52,6 +61,8 @@ output/<论文名>/
 ├── segments.json       # 溯源层：译文段 ↔ PDF 页码/坐标
 └── _cache/             # 缓存（断点续跑不重复计费）
 ```
+
+输出目录自动以 **PDF 内的论文真实标题**命名（取自解析结果，纯本地；标题非法字符自动清洗、超 80 字符截断；同名论文以内容哈希后缀区分，同篇重跑复用目录），也可用 `-o` 指定。
 
 ## 实测指标（双栏 5 页 arXiv 论文，纯 CPU）
 

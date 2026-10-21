@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,11 +24,14 @@ def main(argv: list[str] | None = None) -> int:
         prog="paper-translate",
         description="PDF 论文 → 深度理解包（中文译文 + LaTeX 公式注册表 + 图表内容描述）")
     p.add_argument("pdf", help="输入 PDF 路径")
-    p.add_argument("-o", "--output", default=None, help="输出目录（默认 output/<pdf名>/）")
+    p.add_argument("-o", "--output", default=None,
+                   help="输出目录（默认 output/<论文标题>/，标题取自 PDF 解析结果）")
     p.add_argument("--cache-dir", default=None, help="解析缓存目录（复用可跳过 S1）")
     p.add_argument("--tier", default=None, help="MinerU 档位 basic|standard|flash（默认读配置）")
     p.add_argument("--offline", action="store_true", help="离线模式：跳过图表理解与翻译（不调 API）")
     p.add_argument("--config", default=None, help="配置文件路径（默认 config/config.yaml）")
+    p.add_argument("--open", dest="open_out", action="store_true",
+                   help="完成后用系统文件管理器打开输出目录（run.bat 使用）")
     args = p.parse_args(argv)
 
     cfg = load_config(args.config)
@@ -37,7 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     if not pdf.exists():
         print(f"输入不存在: {pdf}")
         return 2
-    out_dir = Path(args.output) if args.output else Path("output") / pdf.stem
+    # 未指定 -o 时由流水线按论文真实标题定名：output/<标题>（v2.1 P0-A）
+    out_dir = Path(args.output) if args.output else None
 
     print(f"paper-translate: {pdf.name}  tier={cfg.get('tier')}  offline={args.offline}")
     report = run_pipeline(pdf, out_dir, cfg,
@@ -48,7 +54,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {k}: {v}")
     ok = all(report["checks"].values())
     print("自检:", "PASS" if ok else "FAIL")
+    if args.open_out:
+        _open_in_file_manager(Path(report["outputs"]["输出目录"]))
     return 0 if ok else 1
+
+
+def _open_in_file_manager(path: Path) -> None:
+    """跨平台尽力而为：失败静默（打开目录只是便利，不影响产物）。"""
+    try:
+        if sys.platform == "win32":
+            os.startfile(str(path))  # noqa: S606
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":

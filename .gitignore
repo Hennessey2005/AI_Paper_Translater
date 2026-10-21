@@ -11,6 +11,9 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+*.egg-info/
+build/
+dist/
 
 # 缓存
 _cache/
@@ -20,8 +23,7 @@ config/config.yaml
 config/glossary.local.yaml
 .env
 
-# 本地测试入口与产物
-/run.bat
+# 本地测试产物（不入库）
 /test/
 
 # 测试夹具（本地保留，不入库）
