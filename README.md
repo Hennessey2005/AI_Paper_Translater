@@ -65,11 +65,11 @@ output/<论文标题>/
 
 输出目录自动以 **PDF 内的论文真实标题**命名（取自解析结果，纯本地；标题非法字符自动清洗、超 80 字符截断；同名论文以内容哈希后缀区分，同篇重跑复用目录），也可用 `-o` 指定。
 
-> 📖 **阅读建议**：译文是含 LaTeX 公式的纯 Markdown，推荐用轻量阅读器 [mdview](https://github.com/mdview2026/mdview) 打开——双击 `.md` 即渲染阅读，社区版免费；公式密集的译文建议 Pro 版（解锁 KaTeX 数学渲染与 Mermaid 图表）。
+> 📖 **阅读建议**：译文是含 LaTeX 公式的纯 Markdown，推荐用轻量阅读器 [mdview](https://github.com/mdview2026/mdview) 打开——双击 `.md` 即渲染阅读；社区版免费，**Pro 为付费**（约 ¥5 一次性买断、可离线），解锁 KaTeX 数学渲染与 Mermaid，公式密集的译文建议用 Pro。
 
-## 实测指标（双栏 5 页 arXiv 论文，纯 CPU）
+## 实测指标（Attention Is All You Need · arXiv 1706.03762v7 · 15 页双栏 · 纯 CPU）
 
-全流程约 **13 分钟 / < ¥0.5**：解析 9.5 min（免费）+ 图表理解 ~5k tokens + 翻译 ~27k tokens；公式与 LaTeX 源码对照 0 错误；缓存命中后重跑 0 次 API 调用。
+冷启动全流程约 **13 分钟 / < ¥1**：S1 解析 223.5s（本地免费）+ S2–S5 约 530s；图表理解 9 项（5 表 + 4 图）约 12.7k tokens，翻译 103 单元约 40.7k tokens，API 合计约 53k tokens；显示公式语法回验 5/5，端到端自检 4/4 PASS；解析/翻译缓存命中后重跑 0 次 API 调用（约 7 min 纯本地重算）。
 
 ## 项目结构
 
@@ -84,5 +84,5 @@ config/                # 配置模板 + 术语表（可积累）
 
 - [MinerU](https://github.com/opendatalab/MinerU)：本项目的本地文档解析引擎（版面 / OCR / 公式 / 表格识别）
 - [PyMuPDF](https://github.com/pymupdf/PyMuPDF)：致敬其「直读 PDF 文本层」的轻量思路。并非所有论文都需要完整解析管线——若只需快速文本提取或轻量级翻译预处理，PyMuPDF 直读文本层是成本最低的替代路线，值得同类项目参考取舍
-- [mdview](https://github.com/mdview2026/mdview)（[官网](https://www.mdview.top/)）：推荐的译文阅读器。双击即渲染的轻量 Markdown 查看器（约 2MB、跨平台），社区版永久免费；本项目产出含大量内嵌 LaTeX 公式，配合支持 KaTeX 的 Pro 版阅读体验最佳
+- [mdview](https://github.com/mdview2026/mdview)（[官网](https://www.mdview.top/)）：推荐的译文阅读器。双击即渲染的轻量 Markdown 查看器（约 2MB、跨平台），社区版永久免费，Pro 版付费买断（约 ¥5，可离线）增加 KaTeX 数学、Mermaid 与编辑模式；本项目产出含大量内嵌 LaTeX 公式，配合支持 KaTeX 的 Pro 版阅读体验最佳
 - [硅基流动](https://siliconflow.cn)：VLM 图表理解与 LLM 翻译的 API 服务
