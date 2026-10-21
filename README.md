@@ -9,6 +9,7 @@
 | 公式变乱码 / 被翻译毁掉 | 公式剥离为 LaTeX + 占位符保护 + 语法回验 | `formulas/` |
 | 图表只是图片，无法检索 | 多模态模型生成中文描述 + 数据表 | `figures/` |
 | 译文无法进知识库 | 语义块翻译 + 页码/坐标溯源层 | `译文.zh.md` + `segments.json` |
+| 配环境劝退 | Windows `run.bat` 自举：自动装 Python/依赖/引导填 key，拖拽即用 | 首次双击后免维护 |
 
 ## 工作原理
 
@@ -64,6 +65,8 @@ output/<论文标题>/
 
 输出目录自动以 **PDF 内的论文真实标题**命名（取自解析结果，纯本地；标题非法字符自动清洗、超 80 字符截断；同名论文以内容哈希后缀区分，同篇重跑复用目录），也可用 `-o` 指定。
 
+> 📖 **阅读建议**：译文是含 LaTeX 公式的纯 Markdown，推荐用轻量阅读器 [mdview](https://github.com/mdview2026/mdview) 打开——双击 `.md` 即渲染阅读，社区版免费；公式密集的译文建议 Pro 版（解锁 KaTeX 数学渲染与 Mermaid 图表）。
+
 ## 实测指标（双栏 5 页 arXiv 论文，纯 CPU）
 
 全流程约 **13 分钟 / < ¥0.5**：解析 9.5 min（免费）+ 图表理解 ~5k tokens + 翻译 ~27k tokens；公式与 LaTeX 源码对照 0 错误；缓存命中后重跑 0 次 API 调用。
@@ -71,11 +74,15 @@ output/<论文标题>/
 ## 项目结构
 
 ```
-src/paper_translate/   # cli / orchestrator / S2-S5 阶段模块 / VLM+LLM 客户端
-scripts/               # M1-M4 阶段回归测试 + 模型选型对比
+run.bat                # Windows 拖拽入口（首跑自动配置环境）
+src/paper_translate/   # cli / orchestrator / S2-S5 阶段模块 / title_naming / VLM+LLM 客户端
+scripts/               # M1-M4 阶段回归测试 + 标题命名回归 + 模型选型对比
 config/                # 配置模板 + 术语表（可积累）
 ```
 
-## 致谢
+## 相关项目推荐与致谢
 
-[MinerU](https://github.com/opendatalab/MinerU) · [硅基流动](https://siliconflow.cn)
+- [MinerU](https://github.com/opendatalab/MinerU)：本项目的本地文档解析引擎（版面 / OCR / 公式 / 表格识别）
+- [PyMuPDF](https://github.com/pymupdf/PyMuPDF)：致敬其「直读 PDF 文本层」的轻量思路。并非所有论文都需要完整解析管线——若只需快速文本提取或轻量级翻译预处理，PyMuPDF 直读文本层是成本最低的替代路线，值得同类项目参考取舍
+- [mdview](https://github.com/mdview2026/mdview)（[官网](https://www.mdview.top/)）：推荐的译文阅读器。双击即渲染的轻量 Markdown 查看器（约 2MB、跨平台），社区版永久免费；本项目产出含大量内嵌 LaTeX 公式，配合支持 KaTeX 的 Pro 版阅读体验最佳
+- [硅基流动](https://siliconflow.cn)：VLM 图表理解与 LLM 翻译的 API 服务
