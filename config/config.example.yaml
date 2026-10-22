@@ -20,9 +20,13 @@ api_route:
 api:
   provider: siliconflow    # siliconflow | bigmodel | custom
   base_url: https://api.siliconflow.cn/v1
-  api_key: ""              # 待填
-  vlm_model: ""            # 图表理解用多模态模型，如 Qwen/Qwen2.5-VL-72B-Instruct
-  llm_model: ""            # 翻译用文本模型，如 deepseek-ai/DeepSeek-V3.2
+  api_key: ""              # 待填：控制台「API keys」页生成
+  # 图表理解多模态模型（实测口径）。注意：请求会附带 enable_thinking:false，
+  # 仅 Qwen3-VL 密集(dense)系列支持，MoE 变体如 Qwen/Qwen3-VL-30B-A3B-Instruct
+  # 会直接报「不支持参数 'enable_thinking'」；Qwen2.5-VL 系列硅基流动已下架
+  vlm_model: "Qwen/Qwen3-VL-32B-Instruct"
+  # 翻译文本模型（M4 选型实测确认；DeepSeek 系列兼容 enable_thinking 参数）
+  llm_model: "deepseek-ai/DeepSeek-V4.1-Flash"
   # 代理策略：留空=强制直连（推荐，国内端点不受 VPN 开关影响）
   # "env"=跟随系统环境变量；或填代理 URL 如 http://127.0.0.1:7897
   proxy: ""

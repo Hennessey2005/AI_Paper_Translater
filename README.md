@@ -49,7 +49,7 @@ paper-translate paper.pdf --open                          # 完成后打开输�
 python -m paper_translate paper.pdf                        # 未安装命令时
 ```
 
-默认适配硅基流动（OpenAI 兼容协议），图表理解 `Qwen/Qwen3-VL-32B-Instruct`、翻译 `DeepSeek-V4.1-Flash`，换平台只需改 `base_url` 和模型名。
+默认适配硅基流动（OpenAI 兼容协议），模板已预填实测模型：图表理解 `Qwen/Qwen3-VL-32B-Instruct`、翻译 `deepseek-ai/DeepSeek-V4.1-Flash`，换平台只需改 `base_url`、`api_key` 和模型名（注意 VLM 需支持 `enable_thinking` 参数的密集系列多模态模型，见模板注释）。
 
 ## 输出结构
 
