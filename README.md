@@ -2,6 +2,10 @@
 
 **PDF 学术论文 → 深度理解包**：一条命令产出「中文译文 + LaTeX 公式注册表 + 图表内容描述」，面向个人知识库 / Agent RAG 场景。
 
+## 写在前面
+
+关于任何bug和建议，欢迎给 ~~我~~ 我的AGENT 提issue。
+
 ## 功能
 
 | 痛点 | 方案 | 产出 |
@@ -22,7 +26,7 @@ PDF ─► S1 MinerU解析 ─► S2 公式剥离 ─► S3 图表理解 ─► 
 
 ## 快速开始
 
-### Windows（推荐：自动配置 + 拖拽）
+### 已支持Windows（推荐：自动配置 + 拖拽）
 
 ```bash
 git clone git@github.com:Hennessey2005/AI_Paper_Translater.git
@@ -65,7 +69,7 @@ output/<论文标题>/
 
 输出目录自动以 **PDF 内的论文真实标题**命名（取自解析结果，纯本地；标题非法字符自动清洗、超 80 字符截断；同名论文以内容哈希后缀区分，同篇重跑复用目录），也可用 `-o` 指定。
 
-> 📖 **阅读建议**：译文是含 LaTeX 公式的纯 Markdown，推荐用轻量阅读器 [mdview](https://github.com/mdview2026/mdview) 打开——双击 `.md` 即渲染阅读；社区版免费，**Pro 为付费**（约 ¥5 一次性买断、可离线），解锁 KaTeX 数学渲染与 Mermaid，公式密集的译文建议用 Pro。
+> 📖 **阅读建议**：译文是含 LaTeX 公式的纯 Markdown，推荐用轻量阅读器 [mdview](https://github.com/mdview2026/mdview) 打开——双击 `.md` 即渲染阅读；社区版免费，**Pro 为付费**（约 ¥10 一次性买断、可离线），解锁 KaTeX 数学渲染与 Mermaid，公式密集的译文建议用 Pro。
 
 ## 实测指标（Attention Is All You Need · arXiv 1706.03762v7 · 15 页双栏 · 纯 CPU）
 
@@ -80,9 +84,9 @@ scripts/               # M1-M4 阶段回归测试 + 标题命名回归 + 模型�
 config/                # 配置模板 + 术语表（可积累）
 ```
 
-## 相关项目推荐与致谢
+## 相关链接
 
 - [MinerU](https://github.com/opendatalab/MinerU)：本项目的本地文档解析引擎（版面 / OCR / 公式 / 表格识别）
-- [PyMuPDF](https://github.com/pymupdf/PyMuPDF)：致敬其「直读 PDF 文本层」的轻量思路。并非所有论文都需要完整解析管线——若只需快速文本提取或轻量级翻译预处理，PyMuPDF 直读文本层是成本最低的替代路线，值得同类项目参考取舍
-- [mdview](https://github.com/mdview2026/mdview)（[官网](https://www.mdview.top/)）：推荐的译文阅读器。双击即渲染的轻量 Markdown 查看器（约 2MB、跨平台），社区版永久免费，Pro 版付费买断（约 ¥5，可离线）增加 KaTeX 数学、Mermaid 与编辑模式；本项目产出含大量内嵌 LaTeX 公式，配合支持 KaTeX 的 Pro 版阅读体验最佳
+- [PyMuPDF](https://github.com/pymupdf/PyMuPDF)：致敬其「直读 PDF 文本层」的轻量思路。并非所有论文都需要完整解析管线——若只需快速文本提取或轻量级翻译预处理，PyMuPDF 直读文本层是成本最低的替代路线
+- [mdview](https://github.com/mdview2026/mdview)（[官网](https://www.mdview.top/)）：推荐的译文阅读器。双击即渲染的轻量 Markdown 查看器（约 2MB、跨平台），社区版永久免费，Pro 版付费买断（约 ¥10，可离线）增加 KaTeX 数学、Mermaid 与编辑模式；本项目产出含大量内嵌 LaTeX 公式，配合支持 KaTeX 的 Pro 版阅读体验最佳
 - [硅基流动](https://siliconflow.cn)：VLM 图表理解与 LLM 翻译的 API 服务
