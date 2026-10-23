@@ -24,17 +24,20 @@ from pathlib import Path
 import yaml
 
 from .clients.llm import LLMClient, log_event
-from .s2_formulas import _content_to_text
+from .s2_formulas import _content_to_text, tidy_inline_math, to_markdown_math
 
 LATEX_CMD_RE = re.compile(r"\\[A-Za-z]+")
 CITE_RE = re.compile(r"\[\d+(?:\s*[–,-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–,-]\s*\d+)?)*\]")
+# 行内数学段 $...$（不含展示公式 $$），用于译文与原文数量一致性校验
+INLINE_MATH_RE = re.compile(r"(?<!\$)\$[^$\n]+\$(?!\$)")
 
-PROMPT_VER = "v1"
+PROMPT_VER = "v2"
 SYSTEM_PROMPT = (
     "你是资深学术论文翻译引擎，将英文学术论文段落翻译成中文。规则："
     "1) 忠实原文，不增删信息，不加译注和总结；"
     "2) 术语表中的译名强制采用；未列入术语表的专业术语首次出现时在括号内附英文原词；"
-    "3) 行内 LaTeX 片段（如 \\mathbf { x } [ n ]）属于公式记号，原样保留，不得翻译、改写或删除；"
+    "3) 行内公式片段以 `$...$` 包裹（如 $d _ { k }$、$\\mathbf { x } [ n ]$），"
+    "`$` 定界符与公式内容必须逐字符原样保留，不得翻译、改写、删除、增删空格或调换位置；"
     "4) 引用编号如 [12]、[1–8] 原样保留；数字、单位、百分比不变；"
     "5) 专有名词（模型名、数据集名、机构名）保留英文；"
     "6) 只输出译文正文本身，不要任何前言、解释或 Markdown 格式。"
@@ -121,6 +124,8 @@ def _check(src: str, zh: str, kind: str = "text") -> list[str]:
     problems = []
     if len(LATEX_CMD_RE.findall(src)) != len(LATEX_CMD_RE.findall(zh)):
         problems.append("latex_cmd_mismatch")
+    if len(INLINE_MATH_RE.findall(src)) != len(INLINE_MATH_RE.findall(zh)):
+        problems.append("inline_math_mismatch")
     if len(CITE_RE.findall(src)) != len(CITE_RE.findall(zh)):
         problems.append("citation_mismatch")
     # 标题译成中文天然更短，不作长度检查
@@ -157,9 +162,12 @@ def translate_units(units: list[Unit], client: LLMClient, gloss_path: Path,
         usage["out"] += r["tok_out"]
         usage["calls"] += 1
         zh = r["text"]
+        # 兜底清洗：模型偶尔把行内公式改写成 \( \) 或在 $ 内侧加空格（KaTeX 不识别）
+        zh = tidy_inline_math(to_markdown_math(zh))
         problems = _check(u.src, zh, u.kind)
         if problems and retry_once:
             fix_hint = {"latex_cmd_mismatch": "行内 LaTeX 公式记号被改动，必须原样保留。",
+                        "inline_math_mismatch": "行内公式 `$...$`（含定界符）被改动、丢失或增删，必须原样保留。",
                         "citation_mismatch": "引用编号被改动或丢失，必须原样保留。",
                         "too_short": "译文过短，疑似漏译，请完整翻译。"}
             r2 = client.chat(SYSTEM_PROMPT,

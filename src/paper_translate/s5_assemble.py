@@ -77,10 +77,13 @@ def assemble(units, figures_by_id: dict, cache_dir: Path, out_dir: Path,
 
     # ---- 自检 ----
     zh_md = "\n".join(zh_lines)
+    # 展示公式按整行 $$...$$ 计数，避免正文行内 `$a$$b$` 相连时误计
+    display_n = sum(1 for ln in zh_md.splitlines()
+                    if ln.strip().startswith("$$") and ln.strip().endswith("$$")
+                    and len(ln.strip()) > 4)
     checks = {
         "无残留占位符": "\u27e6" not in zh_md,
-        "公式数与解析一致": zh_md.count("$$") // 2 ==
-            sum(1 for u in units if u.kind == "equation"),
+        "公式数与解析一致": display_n == sum(1 for u in units if u.kind == "equation"),
         "图均插入": sum(1 for u in units if u.kind == "visual"
                     and u.meta.get("figure_id")) ==
             sum(1 for u in units if u.kind == "visual"),

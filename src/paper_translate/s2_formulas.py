@@ -111,6 +111,44 @@ class FormulaValidator:
         return r
 
 
+# ---------------------------------------------------------------- Markdown 数学定界符
+
+# MinerU middle_json 行内公式 span 类型（content 为无定界符的裸 LaTeX，需包 $...$ 才能被 KaTeX 渲染）
+_INLINE_SPAN_TYPES = {"equation_inline", "inline_equation"}
+# MinerU 常把公式后的句读粘进 span 内容（如 `b _ { j } [ n ] ,`），需挪到定界符外
+_TRAIL_PUNCT = ",.;:，。、"
+
+_MATH_PAREN_RE = re.compile(r"\\\(\s*(.+?)\s*\\\)", re.S)
+_MATH_BRACKET_RE = re.compile(r"\\\[\s*(.+?)\s*\\\]", re.S)
+_INLINE_LOOSE_RE = re.compile(r"(?<!\$)\$[ \t]+([^$\n]+?)[ \t]+\$(?!\$)")
+
+
+def wrap_inline_math(latex: str) -> str:
+    """行内 LaTeX → Markdown 数学语法 `$...$`：去首尾空格（KaTeX 要求定界符紧贴内容），
+    把粘连的尾部标点挪出定界符；内容已含 `$` 时不包裹，避免破坏。"""
+    s = str(latex).strip()
+    if not s or "$" in s:
+        return s
+    tail = ""
+    while s and s[-1] in _TRAIL_PUNCT and not (len(s) >= 2 and s[-2].isdigit()):
+        tail = s[-1] + tail
+        s = s[:-1].rstrip()
+    return f"${s}${tail}"
+
+
+def to_markdown_math(s: str) -> str:
+    r"""LaTeX 数学定界符转 Markdown 数学语法：`\( .. \)` → `$ .. $`；`\[ .. \]` → `$$ .. $$`。
+    用于 VLM 等外部模型输出的行内公式（mdview/KaTeX 只认 `$` 定界）。"""
+    s = _MATH_BRACKET_RE.sub(r"$$\1$$", s)
+    s = _MATH_PAREN_RE.sub(r"$\1$", s)
+    return s
+
+
+def tidy_inline_math(s: str) -> str:
+    """消除行内 `$ 内容 $` 定界符内侧的多余空格（带空格 KaTeX 不识别）。"""
+    return _INLINE_LOOSE_RE.sub(r"$\1$", s)
+
+
 # ---------------------------------------------------------------- 提取与注册表
 
 TEXTUAL_TYPES = {"text", "paragraph_title", "aside_text", "page_footnote", "ref_text", "doc_title"}
@@ -133,14 +171,19 @@ class Formula:
 
 
 def _content_to_text(content, limit: int = 100000) -> str:
-    """middle_json 的 content 兼容两种形态：纯字符串（equation 等）与 span 列表（text 等）。"""
+    """middle_json 的 content 兼容两种形态：纯字符串（equation 等）与 span 列表（text 等）。
+    行内公式 span（equation_inline）的 content 是无定界符的裸 LaTeX，包成 `$...$`，
+    否则 flatten 后公式与正文粘连、Markdown 端无法渲染。"""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
         parts = []
         for span in content:
             if isinstance(span, dict):
-                parts.append(str(span.get("content", "")))
+                text = str(span.get("content", ""))
+                if span.get("type") in _INLINE_SPAN_TYPES:
+                    text = wrap_inline_math(text)
+                parts.append(text)
             else:
                 parts.append(str(span))
         return " ".join(" ".join(parts).split())

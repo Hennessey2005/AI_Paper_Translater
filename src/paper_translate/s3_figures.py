@@ -14,7 +14,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 from .clients.vlm import VLMClient, parse_model_json, log_event
-from .s2_formulas import _content_to_text
+from .s2_formulas import _content_to_text, tidy_inline_math, to_markdown_math
 
 CAPTION_RE = re.compile(r"^\s*(Figure|Fig\.?|Table)\s*(\d+)\s*[:.]", re.I)
 
@@ -179,11 +179,14 @@ def analyze(visuals: list[Visual], cache_dir: Path, client: VLMClient,
         v.usage = resp["usage"]
         try:
             obj = parse_model_json(resp["text"])
+            # VLM 倾向用 LaTeX 定界符 \( \) / \[ \]，KaTeX（mdview）只认 $ / $$，统一转写
+            def _md(s: str) -> str:
+                return tidy_inline_math(to_markdown_math(s))
             v.figure_type = str(obj.get("figure_type", ""))[:24]
-            v.caption_zh = str(obj.get("caption_zh", ""))[:300]
-            v.description = str(obj.get("description", ""))[:1200]
+            v.caption_zh = _md(str(obj.get("caption_zh", ""))[:300])
+            v.description = _md(str(obj.get("description", ""))[:1200])
             dt = obj.get("data_table")
-            v.data_table = str(dt)[:2000] if dt not in (None, "null", "", "None") else None
+            v.data_table = _md(str(dt)[:2000]) if dt not in (None, "null", "", "None") else None
             v.confidence = max(0.0, min(1.0, float(obj.get("confidence", 0.5))))
         except Exception as e:
             v.error = f"JSON解析失败: {e}"
