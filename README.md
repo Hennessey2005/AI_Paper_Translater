@@ -1,4 +1,4 @@
-# AI_Paper_Translater
+# PDF:Paper Decoding Flow - An automatic translation and parsing tool for academic papers, friendly to both human and agents.
 
 **PDF 学术论文 → 深度理解包**：一条命令产出「中文译文 + LaTeX 公式注册表 + 图表内容描述」，面向个人知识库 / Agent RAG 场景。
 
