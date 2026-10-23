@@ -1,6 +1,6 @@
 @echo off
 rem ================================================================
-rem  AI_Paper_Translater v2.1 - Windows entry (self-bootstrapping)
+rem  PDF:Paper Decoding Flow v2.1 - Windows entry (self-bootstrapping)
 rem  Use 1: drop one or more PDF files onto this .bat icon
 rem  Use 2: run it, then drag a PDF path into the prompt + Enter
 rem  First run: auto-creates venv, installs deps, guides API key.

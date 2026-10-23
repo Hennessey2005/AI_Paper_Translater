@@ -29,7 +29,7 @@ PDF ─► S1 MinerU解析 ─► S2 公式剥离 ─► S3 图表理解 ─► 
 ### 已支持Windows（推荐：自动配置 + 拖拽）
 
 ```bash
-git clone git@github.com:Hennessey2005/AI_Paper_Translater.git
+git clone https://github.com/Hennessey2005/paper-decoding-flow.git
 ```
 
 打开仓库目录，**把 PDF 拖到 `run.bat` 图标上**（支持一次拖多个；也可双击后把文件拖入窗口回车）。首次运行自动完成：缺 Python 则引导安装 → 建 venv 装依赖 → 记事本打开 `config\config.yaml` 引导填 API key，之后秒进。处理完成后自动打开结果目录。
