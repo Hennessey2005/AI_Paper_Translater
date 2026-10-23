@@ -71,6 +71,16 @@ output/<论文标题>/
 
 > 📖 **阅读建议**：译文是含 LaTeX 公式的纯 Markdown，推荐用轻量阅读器 [mdview](https://github.com/mdview2026/mdview) 打开——双击 `.md` 即渲染阅读；社区版免费，**Pro 为付费**（约 ¥10 一次性买断、可离线），解锁 KaTeX 数学渲染与 Mermaid，公式密集的译文建议用 Pro。
 
+## 效果展示（mdview 渲染 `译文.zh.md`）
+
+公式处理：行内公式与展示公式均以 Markdown 数学语法保留原始 LaTeX，KaTeX 渲染，左侧目录可跳转：
+
+![公式处理结果](formulas.png)
+
+图表处理：图注译文原位引用 + 裁剪原图 + VLM 生成的中文内容描述：
+
+![图表处理结果](pictures.png)
+
 ## 实测指标（Attention Is All You Need · arXiv 1706.03762v7 · 15 页双栏 · 纯 CPU）
 
 冷启动全流程约 **13 分钟 / < ¥1**：S1 解析 223.5s（本地免费）+ S2–S5 约 530s；图表理解 9 项（5 表 + 4 图）约 12.7k tokens，翻译 103 单元约 40.7k tokens，API 合计约 53k tokens；显示公式语法回验 5/5，端到端自检 4/4 PASS；解析/翻译缓存命中后重跑 0 次 API 调用（约 7 min 纯本地重算）。
