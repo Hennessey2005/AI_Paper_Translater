@@ -55,6 +55,51 @@ python -m paper_translate paper.pdf                          # 未安装命令�
 
 默认适配硅基流动（OpenAI 兼容协议），模板已预填实测模型：图表理解 `Qwen/Qwen3-VL-32B-Instruct`、翻译 `deepseek-ai/DeepSeek-V4.1-Flash`，换平台只需改 `base_url`、`api_key` 和模型名（注意 VLM 需支持 `enable_thinking` 参数的密集系列多模态模型，见模板注释）。
 
+<details>
+<summary><b>配置 local 模式：需要本地 GPU 并安装 Ollama——克隆仓库后，在仓库所在目录打开你的 agent，将以下内容发送给它，一次性完成配置</b></summary>
+
+````text
+请在当前仓库完成 paper-translate 的 local 模式配置（本地 Ollama 翻译，显存预算 ≤ 4GB），按顺序执行，每步完成后再进入下一步：
+
+1. 环境检查
+   - 运行 nvidia-smi：确认存在 NVIDIA GPU 且可用显存 ≥ 4GB；没有则停止并告诉我本机不满足条件。
+   - 检查 Ollama 是否已安装（ollama --version，或常见安装路径）。
+
+2. 安装 Ollama（若未安装，Windows）
+   - 优先：winget install -e --id Ollama.Ollama
+   - 若下载缓慢（安装包走 GitHub CDN）：改下便携版 zip
+     https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip
+     解压后直接运行其中的 ollama.exe serve，无需安装；
+     本机访问 GitHub 慢时可为 curl 加代理（如 -x http://127.0.0.1:7897）。
+
+3. 启动服务
+   - 在仓库外的模型目录启动：OLLAMA_MODELS=<模型目录> ollama serve（后台运行）
+   - curl http://localhost:11434/api/version 应返回版本号。
+
+4. 下载翻译模型（国内走 ModelScope，约 2.4GB；Q4_K_M 量化，实测显存增量约 2.8GB）
+   - curl -L -o <模型目录>/gemma-3-4b-it-Q4_K_M.gguf
+     "https://modelscope.cn/models/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"
+
+5. 导入模型（名字必须是 gemma4b，与 config/config.yaml 的 local.llm_model 一致）
+   - 优先：写一个 Modelfile（内容两行：FROM ./gemma-3-4b-it-Q4_K_M.gguf 和 PARAMETER num_ctx 4096），
+     然后 ollama create gemma4b -f Modelfile
+   - 若 ollama create 报 "invalid model name"（v0.40.10 已知 bug），改用 HTTP API 导入：
+     a) 计算 gguf 的 sha256，POST http://localhost:11434/api/blobs/sha256:<digest>，body 为文件本体；
+     b) POST http://localhost:11434/api/create，JSON body：
+        {"model":"gemma4b","files":{"gemma-3-4b-it-Q4_K_M.gguf":"sha256:<完整digest>"},"stream":false}
+     注意：本机若设置了 http_proxy/https_proxy 环境变量，大文件上传会被代理打断，需绕过代理直连 127.0.0.1。
+
+6. 验证
+   - GET http://localhost:11434/api/tags 应列出 gemma4b；
+   - 用 OpenAI 兼容端点 http://localhost:11434/v1（api_key 任意占位）发一条中英翻译测试，
+     确认输出正常，且 nvidia-smi 显存增量 ≤ 4GB。
+
+7. 汇报：全部通过后告诉我 local 模式已就绪——在 run.bat 中选 3) local，
+   或 python -m paper_translate paper.pdf --mode local。
+````
+
+</details>
+
 ## 四种运行模式
 
 <details>
