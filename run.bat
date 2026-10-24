@@ -107,39 +107,38 @@ set "PYTHONIOENCODING=utf-8"
 set "OKCNT=0"
 set "FAILCNT=0"
 
-rem ---------- 模式选择（平级四选一） ----------
+rem ---------- mode selection (four peer modes) ----------
 set "MODEFLAG="
 echo.
 echo Select mode:
-echo   1^) default  ^(recommended^)  - SiliconFlow 云端
-echo   2^) free                    - 智谱 GLM-4.6V/4.7-Flash 免费云
-echo   3^) local                   - Ollama 本地翻译（本地 GPU）
-echo   4^) minimum                 - 纯解析（不调任何 API）
+echo   1^) default  ^(recommended^)  - SiliconFlow cloud (paid)
+echo   2^) free                    - Zhipu GLM cloud (free tier)
+echo   3^) local                   - Ollama on your GPU (S3 skipped, no cloud)
+echo   4^) minimum                 - parse only (no API at all)
 set /p "MODE=Input 1-4 (Enter=1): "
 if /i "%MODE%"=="2" set "MODEFLAG=--mode free"
 if /i "%MODE%"=="3" set "MODEFLAG=--mode local"
 if /i "%MODE%"=="4" set "MODEFLAG=--mode minimum"
 
-rem free 需要智谱 key
-if "%MODEFLAG%"=="--mode free" (
-  set "ZP=NO"
-  for /f "usebackq delims=" %%K in (`"%VPY%" -c "import yaml;c=yaml.safe_load(open('config/config.yaml',encoding='utf-8')) or {};a=(c.get('api') or {});k=(a.get('zhipu_api_key') or '');print('HAS' if str(k).strip() else 'NO')"`) do set "ZP=%%K"
-  if not "%ZP%"=="HAS" (
-    echo [mode] free 需要 api.zhipu_api_key，请在 config.yaml 填写后重试。
+rem ---------- mode guards (top-level, no for /f backtick: cmd splits quoted ----------
+rem ---------- commands inside backticks - use a temp file handshake instead)  ----------
+if exist _zp.tmp del _zp.tmp >nul 2>&1
+set "ZP=NO"
+if "%MODEFLAG%"=="--mode free" "%VPY%" -c "import yaml;c=yaml.safe_load(open('config/config.yaml',encoding='utf-8')) or {};a=(c.get('api') or {});k=(a.get('zhipu_api_key') or '');open('_zp.tmp','w').write('HAS' if str(k).strip() else 'NO')" >nul 2>&1
+if "%MODEFLAG%"=="--mode free" for /f %%K in (_zp.tmp) do set "ZP=%%K"
+if "%MODEFLAG%"=="--mode free" if not "%ZP%"=="HAS" (
+    echo [mode] free needs api.zhipu_api_key in config\config.yaml - fill it, save, retry.
     pause
     exit /b 1
-  )
 )
+if exist _zp.tmp del _zp.tmp >nul 2>&1
 
-rem local 需要 Ollama 可达且已 pull 模型
-if "%MODEFLAG%"=="--mode local" (
-  "%VPY%" -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/api/tags', timeout=3)" >nul 2>&1
-  if errorlevel 1 (
-    echo [mode] local 需要本机运行 Ollama 且已导入翻译模型（推荐 gemma4b，显存约 2.8GB）。
-    echo        先启动: ollama serve  并导入模型后重试（导入方法见 README）。
+if "%MODEFLAG%"=="--mode local" "%VPY%" -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/api/tags', timeout=3)" >nul 2>&1
+if "%MODEFLAG%"=="--mode local" if errorlevel 1 (
+    echo [mode] local needs Ollama running with a translation model imported.
+    echo        Start "ollama serve" first; GGUF import guide in README.
     pause
     exit /b 1
-  )
 )
 
 for %%F in (%ARGS%) do call :run_one %%F
@@ -157,7 +156,7 @@ exit /b %FAILCNT%
 echo.
 echo ======== Processing: %~1 ========
 echo    First parse of a paper downloads MinerU models once and takes ~10 min.
-echo    Keep this window open. CLI 可用 --mode minimum(纯解析)/local(Ollama) 等。
+echo    Keep this window open. CLI also supports --mode default/free/local/minimum.
 "%VPY%" -m paper_translate %MODEFLAG% --open %1
 if not errorlevel 1 goto :run_ok
 rem no paren-block here: file names may contain ")" and break block parsing
