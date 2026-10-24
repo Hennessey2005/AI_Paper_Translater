@@ -27,7 +27,7 @@ def make_http_client(proxy: str | None, timeout: float) -> httpx.Client:
 
 
 def _rate_limit_backoff(attempt: int, err: Exception) -> float:
-    """429 限流退避：优先用服务端 Retry-After，否则指数退避（基础 3s，429 用 5s，封顶 60s）。
+    """429 限流退避：优先用服务端 Retry-After（封顶 60s），否则指数退避（基础 3s，429 用 5s，封顶 60s）。
 
     免费档模型（如智谱 GLM-4.6V/4.7-Flash）常被限流，需要更耐心地退避而非快速重试。
     """
@@ -39,12 +39,18 @@ def _rate_limit_backoff(attempt: int, err: Exception) -> float:
             ra = headers.get("Retry-After")
             if ra:
                 try:
-                    return float(ra)
+                    return min(60.0, float(ra))  # 服务端偶发天价 Retry-After，封顶防假死
                 except (ValueError, TypeError):
                     pass
         if getattr(resp, "status_code", None) == 429:
             base = 5.0
     return min(60.0, base * (2 ** attempt))
+
+
+def _warn_retry(attempt: int, max_retries: int, wait: float, err: Exception) -> None:
+    """重试必须可见：静默等待是"长时间无输出"错觉的主要来源之一。"""
+    print(f"  [retry] {type(err).__name__}: {str(err)[:90]}",
+          f"-> wait {wait:.0f}s (attempt {attempt + 2}/{max_retries})", flush=True)
 
 
 def _data_url(image_path: Path) -> str:
@@ -94,9 +100,11 @@ class VLMClient:
                     "duration_s": round(time.perf_counter() - t0, 1),
                     "retries": attempt,
                 }
-            except Exception as e:  # 网络/限流 → 指数退避（尊重 Retry-After）
+            except Exception as e:  # 网络/限流 → 指数退避（尊重 Retry-After，打印等待）
                 last_err = e
-                time.sleep(_rate_limit_backoff(attempt, e))
+                wait = _rate_limit_backoff(attempt, e)
+                _warn_retry(attempt, self.max_retries, wait, e)
+                time.sleep(wait)
         raise RuntimeError(f"VLM 调用失败（{self.max_retries} 次重试后）: {last_err}")
 
 

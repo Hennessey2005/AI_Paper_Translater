@@ -149,6 +149,13 @@ def translate_units(units: list[Unit], client: LLMClient, gloss_path: Path,
                 "待翻译段落：\n{seg}")
 
     todo = [u for u in units if u.kind in ("title", "text")]
+    # 预扫缓存：让用户开局就知道要调多少次 API（其余直接命中缓存跳过）
+    gloss_keys = {hashlib.sha1(
+        f"{PROMPT_VER}|{client.model}|{gloss_block}|{u.src}".encode()).hexdigest()[:16]
+        for u in todo}
+    n_cached = sum(1 for k in gloss_keys if k in cache)
+    print(f"  [s4] {len(todo)} units: {n_cached} cached, "
+          f"{len(todo) - n_cached} to translate", flush=True)
     for u in todo:
         key = hashlib.sha1(
             f"{PROMPT_VER}|{client.model}|{gloss_block}|{u.src}".encode()).hexdigest()[:16]
@@ -156,6 +163,8 @@ def translate_units(units: list[Unit], client: LLMClient, gloss_path: Path,
             u.zh = cache[key]
             usage["cache_hit"] += 1
             continue
+        print(f"  [s4 {usage['calls'] + 1}/{len(todo) - n_cached}] {u.seg_id} ...",
+              end="", flush=True)
         r = client.chat(SYSTEM_PROMPT,
                         user_tpl.format(title=doc_title, gloss=gloss_block, seg=u.src))
         usage["in"] += r["tok_in"]
@@ -165,6 +174,8 @@ def translate_units(units: list[Unit], client: LLMClient, gloss_path: Path,
         # 兜底清洗：模型偶尔把行内公式改写成 \( \) 或在 $ 内侧加空格（KaTeX 不识别）
         zh = tidy_inline_math(to_markdown_math(zh))
         problems = _check(u.src, zh, u.kind)
+        print(f" {r['duration_s']}s" + (f" flag={','.join(problems)}" if problems else ""),
+              flush=True)
         if problems and retry_once:
             fix_hint = {"latex_cmd_mismatch": "行内 LaTeX 公式记号被改动，必须原样保留。",
                         "inline_math_mismatch": "行内公式 `$...$`（含定界符）被改动、丢失或增删，必须原样保留。",

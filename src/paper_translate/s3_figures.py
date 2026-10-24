@@ -166,9 +166,10 @@ def analyze(visuals: list[Visual], cache_dir: Path, client: VLMClient,
             log_path: Path) -> dict:
     """顺序调用 VLM 解析每个未跳过的视觉块。返回用量汇总。"""
     total = {"in": 0, "out": 0, "calls": 0, "fail": 0}
-    for v in visuals:
-        if v.skipped:
-            continue
+    todo = [v for v in visuals if not v.skipped]
+    print(f"  [s3] {len(todo)} visuals to analyze", flush=True)
+    for i, v in enumerate(todo, 1):
+        print(f"  [s3 {i}/{len(todo)}] {v.id} ({v.kind}) ...", end="", flush=True)
         resp = client.chat_image(
             cache_dir / v.image_path, SYSTEM_PROMPT,
             _prompt_for(v.kind, v.caption, v.context_before + " " + v.context_after),
@@ -192,6 +193,8 @@ def analyze(visuals: list[Visual], cache_dir: Path, client: VLMClient,
         except Exception as e:
             v.error = f"JSON解析失败: {e}"
             total["fail"] += 1
+        print(f" {resp['duration_s']}s" + (f" FAIL {v.error[:60]}" if v.error else ""),
+              flush=True)
         log_event(log_path, {
             "stage": "s3", "level": "info" if not v.error else "warn",
             "item": v.id, "engine": client.model,

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from openai import OpenAI
 
-from .vlm import make_http_client, _rate_limit_backoff
+from .vlm import make_http_client, _rate_limit_backoff, _warn_retry
 
 
 class LLMClient:
@@ -45,7 +45,9 @@ class LLMClient:
                         "retries": attempt}
             except Exception as e:
                 last_err = e
-                time.sleep(_rate_limit_backoff(attempt, e))
+                wait = _rate_limit_backoff(attempt, e)
+                _warn_retry(attempt, self.max_retries, wait, e)
+                time.sleep(wait)
         raise RuntimeError(f"LLM 调用失败（{self.max_retries} 次重试后）: {last_err}")
 
 

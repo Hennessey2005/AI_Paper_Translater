@@ -59,9 +59,14 @@ def main(argv: list[str] | None = None) -> int:
         mode = "minimum"
 
     print(f"paper-translate: {pdf.name}  tier={cfg.get('tier')}  mode={mode}")
-    report = run_pipeline(pdf, out_dir, cfg,
-                          cache_dir=Path(args.cache_dir) if args.cache_dir else None,
-                          mode=mode)
+    try:
+        report = run_pipeline(pdf, out_dir, cfg,
+                              cache_dir=Path(args.cache_dir) if args.cache_dir else None,
+                              mode=mode)
+    except KeyboardInterrupt:
+        # Ctrl+C：已完成的 S3 项 / S4 单元均已落盘缓存，重跑自动从断点继续
+        print("\n[interrupted] 已手动中止。已完成的单元有缓存，重新运行将从断点继续。")
+        return 130
     print(f"\n完成（{report['total_seconds']}s）")
     for k, v in report["outputs"].items():
         print(f"  {k}: {v}")
