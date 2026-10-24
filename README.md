@@ -162,3 +162,7 @@ config/                # 配置模板 + 术语表（可积累）
 - [PyMuPDF](https://github.com/pymupdf/PyMuPDF)：致敬其「直读 PDF 文本层」的轻量思路。并非所有论文都需要完整解析管线——若只需快速文本提取或轻量级翻译预处理，PyMuPDF 直读文本层是成本最低的替代路线
 - [mdview](https://github.com/mdview2026/mdview)（[官网](https://www.mdview.top/)）：推荐的译文阅读器。双击即渲染的轻量 Markdown 查看器（约 2MB、跨平台），社区版永久免费，Pro 版付费买断（约 ¥10，可离线）增加 KaTeX 数学、Mermaid 与编辑模式；本项目产出含大量内嵌 LaTeX 公式，配合支持 KaTeX 的 Pro 版阅读体验最佳
 - [硅基流动](https://siliconflow.cn)：VLM 图表理解与 LLM 翻译的 API 服务
+
+## LICENSE
+
+ MIT
