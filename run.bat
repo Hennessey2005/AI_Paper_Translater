@@ -96,6 +96,10 @@ echo   - fill api_key / base_url for your OpenAI-compatible provider
 echo     (default: SiliconFlow; VLM=Qwen3-VL, LLM=DeepSeek), save and close Notepad.
 echo   - STRONGLY RECOMMENDED: fill api.zhipu_api_key for free mode
 echo     (Zhipu GLM-4.6V/4.7-Flash, zero cost; get key at open.bigmodel.cn)
+echo     WARNING: the free tier is shared and often throttled at peak
+echo     times. Calls wait and retry automatically, so a paper may take
+echo     30-60 min in free mode. If it stalls for very long, just re-run
+echo     later (finished units are cached) or switch to default mode.
 echo   - optional local mode: install Ollama + import a translation model
 echo     (GGUF recommended: gemma3-4b-it Q4_K_M, ~2.8GB VRAM; see README)
 set /p "_=Press Enter here after saving config\config.yaml: "
@@ -117,6 +121,7 @@ echo   3^) local                   - Ollama on your GPU (S3 skipped, no cloud)
 echo   4^) minimum                 - parse only (no API at all)
 set /p "MODE=Input 1-4 (Enter=1): "
 if /i "%MODE%"=="2" set "MODEFLAG=--mode free"
+if /i "%MODE%"=="2" echo [mode] free runs on a shared free tier - expect throttling waits at peak times; progress is cached and resumable.
 if /i "%MODE%"=="3" set "MODEFLAG=--mode local"
 if /i "%MODE%"=="4" set "MODEFLAG=--mode minimum"
 
