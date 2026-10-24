@@ -108,6 +108,9 @@ rem ---------- run pipeline for each file ----------
 :ready
 chcp 65001 >nul
 set "PYTHONIOENCODING=utf-8"
+rem local pipeline talks to Ollama on localhost - never route it via a proxy
+set "NO_PROXY=localhost,127.0.0.1"
+set "no_proxy=localhost,127.0.0.1"
 set "OKCNT=0"
 set "FAILCNT=0"
 
@@ -138,13 +141,64 @@ if "%MODEFLAG%"=="--mode free" if not "%ZP%"=="HAS" (
 )
 if exist _zp.tmp del _zp.tmp >nul 2>&1
 
-if "%MODEFLAG%"=="--mode local" "%VPY%" -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/api/tags', timeout=3)" >nul 2>&1
-if "%MODEFLAG%"=="--mode local" if errorlevel 1 (
-    echo [mode] local needs Ollama running with a translation model imported.
-    echo        Start "ollama serve" first; GGUF import guide in README.
+if "%MODEFLAG%"=="--mode local" goto :local_guard
+goto :modes_done
+
+:local_guard
+rem --- tier 1: service already running (and really is Ollama)? ---
+set "OL=NO"
+if exist _ol.tmp del _ol.tmp >nul 2>&1
+"%VPY%" -c "import urllib.request as u; o=u.build_opener(u.ProxyHandler({})); r=o.open('http://127.0.0.1:11434/api/tags', timeout=2); open('_ol.tmp','w').write('OK' if b'"models"' in r.read() else 'BAD')" >nul 2>&1
+if exist _ol.tmp for /f %%T in (_ol.tmp) do set "OL=%%T"
+if exist _ol.tmp del _ol.tmp >nul 2>&1
+if "%OL%"=="OK" goto :local_model_check
+
+rem --- tier 2: find ollama.exe and auto-launch the service ---
+set "OLLAMA_EXE="
+where ollama.exe >nul 2>&1 && set "OLLAMA_EXE=ollama.exe"
+if not defined OLLAMA_EXE if exist "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" set "OLLAMA_EXE=%LOCALAPPDATA%\Programs\Ollama\ollama.exe"
+if not defined OLLAMA_EXE if exist "E:\ollama_dist\ollama.exe" set "OLLAMA_EXE=E:\ollama_dist\ollama.exe"
+if not defined OLLAMA_EXE (
+    echo [mode] local needs Ollama. It is not installed or not on PATH.
+    echo        See README for install + GGUF import steps, then retry.
     pause
     exit /b 1
 )
+rem models dir: keep user's env override, else known portable dir, else Ollama default
+if not defined OLLAMA_MODELS if exist "E:\ollama_models" set "OLLAMA_MODELS=E:\ollama_models"
+echo [mode] local: Ollama service not running - starting "%OLLAMA_EXE%" ...
+start "Ollama" /min "%OLLAMA_EXE%" serve
+set "OL=NO"
+set /a OL_TRIES=0
+:local_poll
+ping -n 2 127.0.0.1 >nul
+if exist _ol.tmp del _ol.tmp >nul 2>&1
+"%VPY%" -c "import urllib.request as u; o=u.build_opener(u.ProxyHandler({})); r=o.open('http://127.0.0.1:11434/api/tags', timeout=2); open('_ol.tmp','w').write('OK' if b'"models"' in r.read() else 'BAD')" >nul 2>&1
+if exist _ol.tmp for /f %%T in (_ol.tmp) do set "OL=%%T"
+if exist _ol.tmp del _ol.tmp >nul 2>&1
+if "%OL%"=="OK" goto :local_model_check
+set /a OL_TRIES+=1
+if %OL_TRIES% lss 15 goto :local_poll
+echo [mode] local: started Ollama but the service did not come up in ~15s.
+echo        Possible port conflict - check the Ollama window, then retry.
+pause
+exit /b 1
+
+:local_model_check
+rem --- tier 3: at least one model must be imported (lazy-load, no pre-mount needed) ---
+set "OLM=EMPTY"
+if exist _ol.tmp del _ol.tmp >nul 2>&1
+"%VPY%" -c "import json,urllib.request as u; o=u.build_opener(u.ProxyHandler({})); d=json.load(o.open('http://127.0.0.1:11434/api/tags', timeout=3)); open('_ol.tmp','w').write('MODEL' if d.get('models') else 'EMPTY')" >nul 2>&1
+if exist _ol.tmp for /f %%T in (_ol.tmp) do set "OLM=%%T"
+if exist _ol.tmp del _ol.tmp >nul 2>&1
+if "%OLM%"=="MODEL" goto :modes_done
+echo [mode] local: Ollama is running, but no model is imported yet.
+echo        Import a translation GGUF first (recommended gemma3-4b-it Q4_K_M,
+echo        ~2.8GB VRAM) - step-by-step guide (incl. agent prompt) in README.
+pause
+exit /b 1
+
+:modes_done
 
 for %%F in (%ARGS%) do call :run_one %%F
 
