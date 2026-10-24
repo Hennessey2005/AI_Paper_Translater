@@ -1,6 +1,7 @@
-# PDF:Paper Decoding Flow - An automatic translation and parsing tool for academic papers, friendly to both human and agents.
+# PDF:Paper Decoding Flow - An translation and parsing tool for academic papers
 
-**PDF 学术论文 → 深度理解包**：一条命令产出「中文译文 + LaTeX 公式注册表 + 图表内容描述」，面向个人知识库 / Agent RAG 场景。
+**PDF 学术论文 → 深度理解包**：一条命令产出「中文译文 + LaTeX 公式注册表 + 图表内容描述」。
+面向中国在校学生的日常工具：一份解析，人读着不烧心，知识库嵌入也不烧心！
 
 ## 写在前面
 
@@ -59,7 +60,7 @@ python -m paper_translate paper.pdf                          # 未安装命令�
 <summary><b>配置 local 模式：需要本地 GPU 并安装 Ollama——克隆仓库后，在仓库所在目录打开你的 agent，将以下内容发送给它，一次性完成配置</b></summary>
 
 ````text
-请在当前仓库完成 paper-translate 的 local 模式配置（本地 Ollama 翻译，显存预算 ≤ 4GB），按顺序执行，每步完成后再进入下一步：
+请在当前仓库完成 paper-translate 的 local 模式配置，按顺序执行，每步完成后再进入下一步：
 
 1. 环境检查
    - 运行 nvidia-smi：确认存在 NVIDIA GPU 且可用显存 ≥ 4GB；没有则停止并告诉我本机不满足条件。
@@ -70,7 +71,7 @@ python -m paper_translate paper.pdf                          # 未安装命令�
    - 若下载缓慢（安装包走 GitHub CDN）：改下便携版 zip
      https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip
      解压后直接运行其中的 ollama.exe serve，无需安装；
-     本机访问 GitHub 慢时可为 curl 加代理（如 -x http://127.0.0.1:7897）。
+     本机访问 GitHub 慢时可为 curl 加代理。
 
 3. 启动服务
    - 在仓库外的模型目录启动：OLLAMA_MODELS=<模型目录> ollama serve（后台运行）
@@ -107,9 +108,9 @@ python -m paper_translate paper.pdf                          # 未安装命令�
 
 | 模式 | 名称 | 是否自动配置 | 配置需求 | 成本 | 产物 |
 |---|---|---|---|---|---|
-| `default`（默认） | 硅基流动云端：Qwen3-VL 图表理解 + DeepSeek 翻译 | ✅ 首次引导填 key 即可用 | `api.api_key`（[硅基流动](https://siliconflow.cn)） | 按量计费，实测 < ¥1/篇（约 53k tokens） | 全套：`译文.zh.md` / `译文.bilingual.md` / `formulas/` / `figures/`（含 VLM 中文描述与数据表）/ `segments.json` |
-| `free` | 智谱免费云端：GLM-4.6V-Flash + GLM-4.7-Flash | ◐ 首次引导强烈建议，填了即可用 | `api.zhipu_api_key`（[open.bigmodel.cn](https://open.bigmodel.cn) 注册即得） | 0 元（免费档；偶发限流已由退避重试吸收） | 与 `default` 相同的全套产物 |
-| `local` | Ollama 本地翻译模型（吃本地 GPU，S3 图表理解跳过） | ❌ 需手动配置 | 安装 [Ollama](https://ollama.com) + 导入翻译模型（GGUF 推荐 `gemma3-4b-it` Q4_K_M，约 2.8GB 显存） | 0 元（仅电费） | `figures/` 仅含裁剪图与图注（无 VLM 描述），其余同上全套 |
+| `default`（推荐） | 硅基流动云端：Qwen3-VL 图表理解 + DeepSeek 翻译 | ✅ 首次引导填 key 即可用 | `api.api_key`（[硅基流动](https://siliconflow.cn)） | 按量计费，会议 < ¥1/篇，效果最好 | 全套：`译文.zh.md` / `译文.bilingual.md` / `formulas/` / `figures/`（含 VLM 中文描述与数据表）/ `segments.json` |
+| `free` | 智谱免费云端：GLM-4.6V-Flash + GLM-4.7-Flash | ✅ 首次引导填 key 即可用 | `api.zhipu_api_key`（[open.bigmodel.cn](https://open.bigmodel.cn) 注册即得） | 0 元（免费档；偶发限流） | 与 `default` 相同的全套产物 |
+| `local` | Ollama 本地翻译模型（吃本地 GPU，图表理解跳过） | ❌ 手动配置（agent轻松代劳） | 安装 [Ollama](https://ollama.com) + 导入翻译模型（GGUF 推荐 `gemma3-4b-it` Q4_K_M，约 2.8GB 显存） | 0 元（仅电费） | `figures/` 仅含裁剪图与图注（无 VLM 描述），其余同上全套 |
 | `minimum` | 纯解析（完全不调 API） | ✅ 零配置，开箱即用 | 无 | 0 元 | 解析产物：`译文.zh.md`（保留原文，未翻译）/ `formulas/` / `figures/`（裁剪图）/ `segments.json` |
 
 </details>
