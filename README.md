@@ -32,7 +32,7 @@ PDF ─► S1 MinerU解析 ─► S2 公式剥离 ─► S3 图表理解 ─► 
 git clone https://github.com/Hennessey2005/paper-decoding-flow.git
 ```
 
-打开仓库目录，**把 PDF 拖到 `run.bat` 图标上**（支持一次拖多个；也可双击后把文件拖入窗口回车）。首次运行自动完成：缺 Python 则引导安装 → 建 venv 装依赖 → 记事本打开 `config\config.yaml` 引导填 API key，之后秒进。处理完成后自动打开结果目录。
+打开仓库目录，**把 PDF 拖到 `run.bat` 图标上**（支持一次拖多个；也可双击后把文件拖入窗口回车）。首次运行自动完成：缺 Python 则引导安装 → 建 venv 装依赖 → 记事本打开 `config\config.yaml` 引导填 key（硅基 key 对应 `default`；**强烈建议顺手填入智谱 key**，零成本解锁 `free` 模式），之后秒进。处理完成后自动打开结果目录。
 
 ### 手动 / 其他平台
 
@@ -47,13 +47,29 @@ paper-translate paper.pdf
 常用参数：
 
 ```bash
-paper-translate paper.pdf --offline                       # 仅本地阶段，不调 API
-paper-translate paper.pdf --cache-dir output/_cache/<hash> # 复用解析缓存
-paper-translate paper.pdf --open                          # 完成后打开输出目录
-python -m paper_translate paper.pdf                        # 未安装命令时
+paper-translate paper.pdf --mode default|free|local|minimum  # 四种平级模式，见下表
+paper-translate paper.pdf --cache-dir output/_cache/<hash>   # 复用解析缓存
+paper-translate paper.pdf --open                             # 完成后打开输出目录
+python -m paper_translate paper.pdf                          # 未安装命令时
 ```
 
 默认适配硅基流动（OpenAI 兼容协议），模板已预填实测模型：图表理解 `Qwen/Qwen3-VL-32B-Instruct`、翻译 `deepseek-ai/DeepSeek-V4.1-Flash`，换平台只需改 `base_url`、`api_key` 和模型名（注意 VLM 需支持 `enable_thinking` 参数的密集系列多模态模型，见模板注释）。
+
+## 四种运行模式
+
+<details>
+<summary><b>点击展开：default / free / local / minimum 模式对比（自动配置、配置需求、成本、产物）</b></summary>
+
+| 模式 | 名称 | 是否自动配置 | 配置需求 | 成本 | 产物 |
+|---|---|---|---|---|---|
+| `default`（默认） | 硅基流动云端：Qwen3-VL 图表理解 + DeepSeek 翻译 | ✅ 首次引导填 key 即可用 | `api.api_key`（[硅基流动](https://siliconflow.cn)） | 按量计费，实测 < ¥1/篇（约 53k tokens） | 全套：`译文.zh.md` / `译文.bilingual.md` / `formulas/` / `figures/`（含 VLM 中文描述与数据表）/ `segments.json` |
+| `free` | 智谱免费云端：GLM-4.6V-Flash + GLM-4.7-Flash | ◐ 首次引导强烈建议，填了即可用 | `api.zhipu_api_key`（[open.bigmodel.cn](https://open.bigmodel.cn) 注册即得） | 0 元（免费档；偶发限流已由退避重试吸收） | 与 `default` 相同的全套产物 |
+| `local` | Ollama 本地翻译模型（吃本地 GPU，S3 图表理解跳过） | ❌ 需手动配置 | 安装 [Ollama](https://ollama.com) + 导入翻译模型（GGUF 推荐 `gemma3-4b-it` Q4_K_M，约 2.8GB 显存） | 0 元（仅电费） | `figures/` 仅含裁剪图与图注（无 VLM 描述），其余同上全套 |
+| `minimum` | 纯解析（完全不调 API） | ✅ 零配置，开箱即用 | 无 | 0 元 | 解析产物：`译文.zh.md`（保留原文，未翻译）/ `formulas/` / `figures/`（裁剪图）/ `segments.json` |
+
+</details>
+
+所有模式共享 S1 本地解析（MinerU，按 PDF 内容哈希缓存，重跑零成本）。
 
 ## 输出结构
 

@@ -31,9 +31,16 @@ def _find_middle_json(cache_dir: Path) -> Path | None:
 
 
 def run_pipeline(pdf: Path, out_dir: Path | None, cfg: dict,
-                 cache_dir: Path | None = None, offline: bool = False,
+                 cache_dir: Path | None = None, mode: str = "default",
                  log_dir: Path | None = None) -> dict:
-    """out_dir=None → S1 解析后按论文标题自动命名 output/<标题>（v2.1 P0-A，title_naming）。"""
+    """out_dir=None → S1 解析后按论文标题自动命名 output/<标题>（v2.1 P0-A，title_naming）。
+
+    mode（平级四选一，run.bat 菜单 / --mode 指定）：
+      default  - 云端硅基流动（原默认）
+      free     - 智谱 GLM-4.6V/4.7-Flash（免费云）
+      local    - 本地 Ollama 翻译模型（本地 GPU），S3 图表理解跳过
+      minimum  - 纯解析，不调任何 API
+    """
     t_start = time.perf_counter()
     pdf = Path(pdf)
     # PDF 内容哈希：既隔离缓存，也作为输出目录的身份标记（title_naming）
@@ -50,7 +57,48 @@ def run_pipeline(pdf: Path, out_dir: Path | None, cfg: dict,
     log_dir = Path(log_dir) if log_dir else Path("log")
     log_dir.mkdir(exist_ok=True)
     log_path = log_dir / f"run-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
+
+    mode = (mode or "default").lower()
+    offline = (mode == "minimum")
     api = cfg.get("api", {})
+    enable_thinking = True   # 本地/Ollama 端点不识别 enable_thinking，默认省略该参数
+    vlm_max_retries, llm_max_retries = 3, 3
+
+    if mode == "free":
+        fp = cfg.get("free", {})
+        zk = (api.get("zhipu_api_key") or os.environ.get("ZHIPU_API_KEY", "")).strip()
+        if not zk:
+            raise RuntimeError(
+                "free 模式需要 api.zhipu_api_key（或在环境变量 ZHIPU_API_KEY 中）")
+        api = {
+            "base_url": fp.get("base_url", "https://open.bigmodel.cn/api/paas/v4"),
+            "api_key": zk,
+            "vlm_model": fp.get("vlm_model", "GLM-4.6V-Flash"),
+            "llm_model": fp.get("llm_model", "GLM-4.7-Flash"),
+            "proxy": api.get("proxy"),
+        }
+        enable_thinking = False
+        vlm_max_retries = llm_max_retries = 8
+        print(f"  [mode] free (Zhipu): vlm={api['vlm_model']} llm={api['llm_model']}")
+    elif mode == "local":
+        lp = cfg.get("local", {})
+        api = {
+            "base_url": lp.get("base_url", "http://localhost:11434/v1"),
+            "api_key": lp.get("api_key", "ollama"),
+            "vlm_model": None,
+            "llm_model": lp.get("llm_model") or "qwen2.5:14b-instruct",
+            "proxy": None,
+            "max_concurrency": lp.get("max_concurrency", 1),
+        }
+        # enable_thinking 保持 True（不发送该字段）→ 兼容 Ollama
+        print(f"  [mode] local (Ollama): llm={api['llm_model']}  (S3 图表理解跳过)")
+    elif mode == "minimum":
+        print("  [mode] minimum (parse only, no API)")
+    else:  # default
+        mode = "default"
+        enable_thinking = False
+        print(f"  [mode] default ({api.get('provider', 'cloud')}): "
+              f"vlm={api.get('vlm_model')} llm={api.get('llm_model')}")
 
     report: dict = {"pdf": pdf.name, "pdf_hash": pdf_hash,
                     "cache_dir": str(cache_dir), "stages": {}}
@@ -94,14 +142,16 @@ def run_pipeline(pdf: Path, out_dir: Path | None, cfg: dict,
     mark("s2", formulas=len(registry),
          syntax_ok=sum(1 for f in registry if f.syntax["strict_ok"] or f.syntax["lenient_ok"]))
 
-    # ---------- S3 图表理解（API；offline 跳过） ----------
+    # ---------- S3 图表理解（API；offline / local 跳过） ----------
     visuals = collect_visuals(mj, cache_dir)
-    if offline:
+    if offline or mode == "local":
         emit_figures(visuals, out_dir / "figures", cache_dir)
-        mark("s3", mode="offline", figures=sum(1 for v in visuals if not v.skipped))
+        mark("s3", mode="skip" if mode == "local" else "offline",
+             figures=sum(1 for v in visuals if not v.skipped))
     else:
         vlm = VLMClient(api["base_url"], api["api_key"], api["vlm_model"],
-                        proxy=api.get("proxy"))
+                        proxy=api.get("proxy"), max_retries=vlm_max_retries,
+                        enable_thinking=enable_thinking)
         usage = analyze_figures(visuals, cache_dir, vlm, log_path)
         emit_figures(visuals, out_dir / "figures", cache_dir)
         mark("s3", figures=sum(1 for v in visuals if not v.skipped),
@@ -121,7 +171,8 @@ def run_pipeline(pdf: Path, out_dir: Path | None, cfg: dict,
     else:
         llm = LLMClient(api["base_url"], api["api_key"],
                         api.get("llm_model") or api["vlm_model"],
-                        proxy=api.get("proxy"))
+                        proxy=api.get("proxy"), max_retries=llm_max_retries,
+                        enable_thinking=enable_thinking)
         usage = translate_units(units, llm,
                                 gloss_path=Path("config/glossary.yaml"),
                                 doc_title=title_src,

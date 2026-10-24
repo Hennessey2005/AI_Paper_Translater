@@ -26,6 +26,27 @@ def make_http_client(proxy: str | None, timeout: float) -> httpx.Client:
     return httpx.Client(trust_env=False, timeout=timeout)
 
 
+def _rate_limit_backoff(attempt: int, err: Exception) -> float:
+    """429 限流退避：优先用服务端 Retry-After，否则指数退避（基础 3s，429 用 5s，封顶 60s）。
+
+    免费档模型（如智谱 GLM-4.6V/4.7-Flash）常被限流，需要更耐心地退避而非快速重试。
+    """
+    base = 3.0
+    resp = getattr(err, "response", None)
+    if resp is not None:
+        headers = getattr(resp, "headers", None)
+        if headers is not None:
+            ra = headers.get("Retry-After")
+            if ra:
+                try:
+                    return float(ra)
+                except (ValueError, TypeError):
+                    pass
+        if getattr(resp, "status_code", None) == 429:
+            base = 5.0
+    return min(60.0, base * (2 ** attempt))
+
+
 def _data_url(image_path: Path) -> str:
     b64 = base64.b64encode(image_path.read_bytes()).decode()
     suffix = image_path.suffix.lstrip(".").lower()
@@ -37,29 +58,35 @@ def _data_url(image_path: Path) -> str:
 class VLMClient:
     def __init__(self, base_url: str, api_key: str, model: str,
                  timeout: float = 120.0, max_retries: int = 3,
-                 proxy: str | None = None):
+                 proxy: str | None = None, enable_thinking: bool = True):
         self.model = model
         self.max_retries = max_retries
+        self.enable_thinking = enable_thinking
         self._cli = OpenAI(api_key=api_key, base_url=base_url,
                            http_client=make_http_client(proxy, timeout))
 
     def chat_image(self, image_path: Path, system: str, user: str,
                    max_tokens: int = 2000) -> dict:
-        """发送 单图+文本 请求。返回 {text, usage:{in,out}, duration_s, retries}。"""
+        """发送 单图+文本 请求。返回 {text, usage:{in,out}, duration_s, retries}。
+
+        enable_thinking=False 时附加 extra_body={"enable_thinking": False}（关闭长思考，
+        加速结构化抽取）；为 True 时不发送该字段，兼容不识别该参数的本地端点（如 Ollama）。
+        """
         content = [
             {"type": "image_url", "image_url": {"url": _data_url(image_path)}},
             {"type": "text", "text": user},
         ]
         messages = [{"role": "system", "content": system},
                     {"role": "user", "content": content}]
+        extra = {"enable_thinking": False} if not self.enable_thinking else None
         last_err: Exception | None = None
         for attempt in range(self.max_retries):
             t0 = time.perf_counter()
             try:
-                r = self._cli.chat.completions.create(
-                    model=self.model, messages=messages, max_tokens=max_tokens,
-                    extra_body={"enable_thinking": False},
-                )
+                kw = {"model": self.model, "messages": messages, "max_tokens": max_tokens}
+                if extra is not None:
+                    kw["extra_body"] = extra
+                r = self._cli.chat.completions.create(**kw)
                 u = r.usage
                 return {
                     "text": r.choices[0].message.content or "",
@@ -67,9 +94,9 @@ class VLMClient:
                     "duration_s": round(time.perf_counter() - t0, 1),
                     "retries": attempt,
                 }
-            except Exception as e:  # 网络/限流 → 指数退避
+            except Exception as e:  # 网络/限流 → 指数退避（尊重 Retry-After）
                 last_err = e
-                time.sleep(2 ** attempt)
+                time.sleep(_rate_limit_backoff(attempt, e))
         raise RuntimeError(f"VLM 调用失败（{self.max_retries} 次重试后）: {last_err}")
 
 

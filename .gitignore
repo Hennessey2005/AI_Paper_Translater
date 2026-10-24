@@ -29,3 +29,4 @@ config/glossary.local.yaml
 # 测试夹具（本地保留，不入库）
 *.pdf
 *.tar.gz
+.workbuddy/

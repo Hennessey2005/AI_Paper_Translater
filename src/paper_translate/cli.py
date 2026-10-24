@@ -28,7 +28,13 @@ def main(argv: list[str] | None = None) -> int:
                    help="输出目录（默认 output/<论文标题>/，标题取自 PDF 解析结果）")
     p.add_argument("--cache-dir", default=None, help="解析缓存目录（复用可跳过 S1）")
     p.add_argument("--tier", default=None, help="MinerU 档位 basic|standard|flash（默认读配置）")
-    p.add_argument("--offline", action="store_true", help="离线模式：跳过图表理解与翻译（不调 API）")
+    p.add_argument("--mode", default="default",
+                   choices=["default", "free", "local", "minimum"],
+                   help="运行模式：default(硅基云) | free(智谱免费云) | local(Ollama本地翻译) | minimum(纯解析)")
+    p.add_argument("--free", dest="free", action="store_true",
+                   help="[兼容别名] 等价于 --mode free")
+    p.add_argument("--offline", dest="offline", action="store_true",
+                   help="[兼容别名] 等价于 --mode minimum")
     p.add_argument("--config", default=None, help="配置文件路径（默认 config/config.yaml）")
     p.add_argument("--open", dest="open_out", action="store_true",
                    help="完成后用系统文件管理器打开输出目录（run.bat 使用）")
@@ -45,10 +51,17 @@ def main(argv: list[str] | None = None) -> int:
     # 未指定 -o 时由流水线按论文真实标题定名：output/<标题>（v2.1 P0-A）
     out_dir = Path(args.output) if args.output else None
 
-    print(f"paper-translate: {pdf.name}  tier={cfg.get('tier')}  offline={args.offline}")
+    # 解析最终 mode：--mode 优先；否则兼容别名 --free / --offline
+    mode = args.mode
+    if mode == "default" and args.free:
+        mode = "free"
+    if mode in ("default", "free") and args.offline:
+        mode = "minimum"
+
+    print(f"paper-translate: {pdf.name}  tier={cfg.get('tier')}  mode={mode}")
     report = run_pipeline(pdf, out_dir, cfg,
                           cache_dir=Path(args.cache_dir) if args.cache_dir else None,
-                          offline=args.offline)
+                          mode=mode)
     print(f"\n完成（{report['total_seconds']}s）")
     for k, v in report["outputs"].items():
         print(f"  {k}: {v}")

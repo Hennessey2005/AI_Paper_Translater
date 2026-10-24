@@ -1,19 +1,8 @@
 # 论文翻译工具配置模板
 # 复制为 config.yaml 后填写；config.yaml 已被 .gitignore 忽略
 
-# ---- 资源路由 ----
-resource_mode: auto        # auto | cpu | gpu   auto=探测 torch.cuda 与显存
-tier: basic                # MinerU 档位: basic(CPU小模型) | standard(小模型+VLM) | flash(快读)
-
-gpu:
-  min_vram_gb: 8
-
-# ---- API 路由 ----
-api_route:
-  figure_understanding: always   # always | gpu_first | never   (S3 图表理解)
-  formula_low_confidence: never  # never | fallback             (S2 低置信度公式精修)
-  translation: always            # always(在线) | offline(Ollama) (S4 翻译)
-  llm_aided: false               # MinerU 内置 API 后处理(标题分级/跨页表格)
+# ---- MinerU 档位 ----
+tier: basic                # basic(CPU小模型) | standard(小模型+VLM) | flash(快读)
 
 # ---- API 提供方（OpenAI 兼容协议，三选一或自行扩展）----
 # 到 M3/M4 阶段需要 key 时再填
@@ -21,6 +10,7 @@ api:
   provider: siliconflow    # siliconflow | bigmodel | custom
   base_url: https://api.siliconflow.cn/v1
   api_key: ""              # 待填：控制台「API keys」页生成
+  zhipu_api_key: ""        # 选填：填了之后 run.bat 可启用 free 免费模式（智谱 GLM-4.6V/4.7-Flash）
   # 图表理解多模态模型（实测口径）。注意：请求会附带 enable_thinking:false，
   # 仅 Qwen3-VL 密集(dense)系列支持，MoE 变体如 Qwen/Qwen3-VL-30B-A3B-Instruct
   # 会直接报「不支持参数 'enable_thinking'」；Qwen2.5-VL 系列硅基流动已下架
@@ -32,6 +22,25 @@ api:
   proxy: ""
   max_concurrency: 4
   budget_limit_usd: 1.0    # 单篇成本上限，超过暂停
+
+# ---- 免费方案（智谱，全免费，选填）----
+# 在 api.zhipu_api_key 填入智谱 key 后，run.bat 启动时可选 free 模式启用：
+#   VLM = GLM-4.6V-Flash（图表理解），LLM = GLM-4.7-Flash（翻译）
+free:
+  base_url: https://open.bigmodel.cn/api/paas/v4
+  vlm_model: GLM-4.6V-Flash
+  llm_model: GLM-4.7-Flash
+
+# ---- 本地方案（Ollama，本地 GPU，选填）----
+# 启用：run.bat 菜单选 3) local，或 CLI 加 --mode local。
+# 前提：本机已装 Ollama 并 pull 翻译模型（如 `ollama pull qwen2.5:14b-instruct`）。
+# Ollama 暴露 OpenAI 兼容端点，自动用本地 GPU；local 模式下 S3 图表理解跳过。
+local:
+  base_url: http://localhost:11434/v1     # Ollama OpenAI 兼容端点
+  api_key: "ollama"                        # 占位，Ollama 不校验
+  llm_model: "gemma4b"                     # 本地翻译模型（需先导入 Ollama；RTX4050 6GB 实测三选一：gemma4b 质量/ qwen3b 均衡/ qwen15b 最快）
+  vlm_model: ""                            # 预留：填 Ollama 多模态模型可扩展 S3 本地化（当前 local 跳过 S3）
+  max_concurrency: 1                       # 本地显存有限，建议降并发
 
 # ---- 输出 ----
 output:

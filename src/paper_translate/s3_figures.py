@@ -172,6 +172,7 @@ def analyze(visuals: list[Visual], cache_dir: Path, client: VLMClient,
         resp = client.chat_image(
             cache_dir / v.image_path, SYSTEM_PROMPT,
             _prompt_for(v.kind, v.caption, v.context_before + " " + v.context_after),
+            max_tokens=4096 if v.kind == "table" else 2000,
         )
         total["in"] += resp["usage"]["in"]
         total["out"] += resp["usage"]["out"]
@@ -186,7 +187,7 @@ def analyze(visuals: list[Visual], cache_dir: Path, client: VLMClient,
             v.caption_zh = _md(str(obj.get("caption_zh", ""))[:300])
             v.description = _md(str(obj.get("description", ""))[:1200])
             dt = obj.get("data_table")
-            v.data_table = _md(str(dt)[:2000]) if dt not in (None, "null", "", "None") else None
+            v.data_table = _md(str(dt)[:4000]) if dt not in (None, "null", "", "None") else None
             v.confidence = max(0.0, min(1.0, float(obj.get("confidence", 0.5))))
         except Exception as e:
             v.error = f"JSON解析失败: {e}"
